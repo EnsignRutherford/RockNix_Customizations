@@ -1,0 +1,103 @@
+#!/bin/bash
+#
+# 001-rocknix-customizations.sh
+#
+# Customization script for Rocknix
+#
+LOG_FILE="/var/log/customize.log"
+rm "$LOG_FILE"
+exec >> "$LOG_FILE" 2>&1
+echo "[INFO] Running $0."
+
+#
+# Global variables used throughout this script
+#
+CUSTOMIZATIONS_HOME="/storage/games-internal/roms/_userdata/customizations"
+ROCKNIX_CONFIG_HOME="/storage/.config"
+
+#
+# Copies the last systems config for EmulationStation over the existing one.  Make a backup first.
+# Automates the update process.
+#
+CURRENT_FILE_PATH="$ROCKNIX_CONFIG_HOME/emulationstation/es_systems.cfg"
+CURRENT_FILE_PATH_BACKUP="$ROCKNIX_CONFIG_HOME/emulationstation/es_systems.cfg.orig"
+LAST_FILE_PATH="$ROCKNIX_CONFIG_HOME/emulationstation/last_es_systems.cfg"
+
+if [[ -L "$CURRENT_FILE_PATH" ]]; then
+	echo "[INFO] Update es_systems.cfg to last file prior to update."
+	rm "$CURRENT_FILE_PATH_BACKUP"
+	cp "$CURRENT_FILE_PATH" "$CURRENT_FILE_PATH_BACKUP"
+	rm "$CURRENT_FILE_PATH"
+	cp "$LAST_FILE_PATH" "$CURRENT_FILE_PATH"
+fi
+
+#
+# Mounts a new theme.xml over the existing one fixing an issue with customization of new systems that aren't in the base theme.
+# This seems to be a unique issue to the Retroid Pocket 5.
+#
+FILE_PATH="$CUSTOMIZATIONS_HOME/themes/theme.xml"
+FILE_MOUNT_PATH="/usr/share/themes/es-theme-art-book-next/theme.xml"
+
+if [ -f "$FILE_PATH" ]; then
+	if grep -q "$FILE_MOUNT_PATH" /proc/mounts; then
+		echo "[INFO] Bind mount already exists at $FILE_MOUNT_PATH"
+	else
+		echo "[INFO] Creating bind mount from $FILE_PATH to $FILE_MOUNT_PATH"
+	        mount --bind "$FILE_PATH" "$FILE_MOUNT_PATH"
+	fi
+fi
+
+#
+# Add "Start Eden" emulator to Tools menu with an image and edit the gamelist.xml
+#
+EDEN_IMAGE_FILE="$CUSTOMIZATIONS_HOME/tools/eden.svg"
+EDEN_IMAGE_FILE_PATH="$ROCKNIX_CONFIG_HOME/modules/images/eden.svg"
+EDEN_START_FILE="$CUSTOMIZATIONS_HOME/tools/Start Eden.sh"
+EDEN_START_FILE_PATH="$ROCKNIX_CONFIG_HOME/modules/Start Eden.sh"
+
+if [ -f "$EDEN_IMAGE_FILE" ] && [ ! -f "$EDEN_IMAGE_FILE_PATH" ]; then
+	cp "$EDEN_IMAGE_FILE" "$EDEN_IMAGE_FILE_PATH"
+fi
+if [ -f "$EDEN_START_FILE" ] && [ ! -f "$EDEN_START_FILE_PATH" ]; then
+        cp "$EDEN_START_FILE" "$EDEN_START_FILE_PATH"
+fi
+
+TOOLS_GAMELIST_FILE_PATH="$ROCKNIX_CONFIG_HOME/modules/gamelist.xml"
+TOOLS_GAMELIST_FILE_PATH_BACKUP="$ROCKNIX_CONFIG_HOME/modules/gamelist.xml.old"
+
+if [ -f "$EDEN_IMAGE_FILE_PATH" ] && [ -f "$EDEN_START_FILE_PATH" ]; then
+	if ! grep -q "Install Eden.sh" "$TOOLS_GAMELIST_FILE_PATH"; then
+		cp "$TOOLS_GAMELIST_FILE_PATH" "$TOOLS_GAMELIST_FILE_PATH_BACKUP"
+		#
+		# Make sure ampersands are escaped properly before manipulation with xmlstarlet
+		#
+		sed -i 's/&/&amp;/g' "$TOOLS_GAMELIST_FILE_PATH"
+	        xmlstarlet ed -L  -s "/gameList" -t elem -n game -s "//game[last()]" -t elem -n path -v "./Start Eden.sh" \
+        	           -s "//game[last()]" -t elem -n name -v "Start Eden" \
+                	   -s "//game[last()]" -t elem -n desc -v "Opens the Eden GUI (SWITCH) to install product keys, firmware, and enable global configuration changes to be made directly to the emulator. It's recommended to have a mouse and keyboard to modify settings."  \
+	                   -s "//game[last()]" -t elem -n developer -v "ROCKNIX" \
+        	           -s "//game[last()]" -t elem -n publisher -v "ROCKNIX" \
+                	   -s "//game[last()]" -t elem -n rating -v "5.0" \
+	                   -s "//game[last()]" -t elem -n releasedate -v "2022" \
+                	   -s "//game[last()]" -t elem -n genre -v "Tool" \
+        	           -s "//game[last()]" -t elem -n players -v "1" \
+	                   -s "//game[last()]" -t elem -n image -v "./images/eden.svg" \
+        	           "$TOOLS_GAMELIST_FILE_PATH"
+	fi
+fi
+
+#
+# Copy missing cores from the base install of RockNix to /tmp/cores, IF they don't exist.
+#
+CORES_DIR="$CUSTOMIZATIONS_HOME/cores"
+CORES_DIR_PATH="/tmp/cores"
+for FILE in "$CORES_DIR"/*; do
+	if [ -f "$FILE" ] ; then
+		echo "[INFO] Copying $FILE to $CORES_DIR_PATH"
+		cp --no-clobber "$FILE" "$CORES_DIR_PATH"/.
+	fi
+done
+
+echo "[INFO] $0 execution completed."
+
+exit
