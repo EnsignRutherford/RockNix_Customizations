@@ -41,3 +41,7 @@ The repo's customizations script is meant to automate a large part of this proce
 6. Copy the updated XML document back to `/storage/.emulationstation/es_systems.cfg`.
 7. Create the path registered in the XML under `/storage` for your roms, e.g. `/storage/roms/puzzlescript` using the above example, and add your roms.
 8. Restart EmulationStation and verify that the new cores and roms appear as expected.
+
+### Puzzlescript
+
+To run Puzzlescript games using the core in this repo, save the Puzzlescript source to a text file with the extension `.pz`. Some Puzzlescript features are not supported and some games will not run correctly, or run with graphical glitches that may make them unplayable.
